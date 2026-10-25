@@ -51,6 +51,7 @@ model Video {
   width         Int?
   height        Int?
   mimeType      String         @default("video/mp4")
+  status        String         @default("READY") // "PROCESSING", "READY", "ERROR"
   thumbnailPath String?
   userId        String
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)

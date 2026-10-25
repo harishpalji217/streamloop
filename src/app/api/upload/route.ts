@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { optimizeVideo } from '@/lib/video-optimizer'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs/promises'
 import path from 'path'
@@ -94,10 +95,16 @@ export async function POST(request: NextRequest) {
         width: metadata.width,
         height: metadata.height,
         mimeType: file.type,
+        status: 'PROCESSING',
         thumbnailPath: null,
         userId,
       },
     })
+
+    // Trigger automatic YouTube Live 2.0s keyframe optimization in the background (fire & forget)
+    optimizeVideo(video.id).catch((err) =>
+      console.warn(`Background optimization task note for ${video.id}:`, err.message)
+    )
 
     return NextResponse.json(video, { status: 201 })
   } catch (error) {

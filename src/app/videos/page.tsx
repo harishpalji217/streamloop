@@ -5,7 +5,7 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { VideoGrid } from '@/components/videos/VideoGrid'
 import { VideoUploadModal } from '@/components/videos/VideoUploadModal'
 import { Button } from '@/components/ui/Button'
-import { Plus, Upload } from 'lucide-react'
+import { Upload } from 'lucide-react'
 
 interface Video {
   id: string
@@ -16,6 +16,7 @@ interface Video {
   duration: number | null
   width: number | null
   height: number | null
+  status?: string
   thumbnailPath: string | null
   createdAt: string
 }
@@ -25,21 +26,36 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true)
   const [showUploadModal, setShowUploadModal] = useState(false)
 
-  useEffect(() => {
-    fetchVideos()
-  }, [])
-
-  const fetchVideos = async () => {
+  const fetchVideos = async (showLoadingState = false) => {
+    if (showLoadingState) setLoading(true)
     try {
       const res = await fetch('/api/videos')
       const data = await res.json()
-      setVideos(data)
+      if (Array.isArray(data)) {
+        setVideos(data)
+      }
     } catch (error) {
       console.error('Failed to fetch videos:', error)
     } finally {
-      setLoading(false)
+      if (showLoadingState) setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchVideos(true)
+  }, [])
+
+  // Auto-refresh while any video is being processed in the background
+  useEffect(() => {
+    const hasProcessing = videos.some((v) => v.status === 'PROCESSING')
+    if (!hasProcessing) return
+
+    const timer = setInterval(() => {
+      fetchVideos(false)
+    }, 3000)
+
+    return () => clearInterval(timer)
+  }, [videos])
 
   const handleVideoUploaded = (newVideo: Video) => {
     setVideos((prev) => [newVideo, ...prev])
@@ -68,6 +84,7 @@ export default function VideosPage() {
           videos={videos}
           loading={loading}
           onDelete={handleVideoDeleted}
+          onRefresh={() => fetchVideos(false)}
         />
 
         <VideoUploadModal
