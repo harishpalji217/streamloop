@@ -19,6 +19,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId') || 'default-user'
 
+    // Auto-heal: un-stick any video that has been in PROCESSING for > 2 minutes
+    try {
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+      await prisma.video.updateMany({
+        where: {
+          userId,
+          status: 'PROCESSING',
+          updatedAt: { lt: twoMinutesAgo },
+        },
+        data: { status: 'READY' },
+      })
+    } catch {}
+
     const videos = await prisma.video.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

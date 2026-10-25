@@ -1,7 +1,6 @@
 import { prisma } from './prisma'
 import path from 'path'
 import fs from 'fs/promises'
-import { spawn } from 'child_process'
 
 function getTargetBitrate(width: number, height: number): { videoBitrate: string; maxRate: string; bufSize: string } {
   const minDim = Math.min(width || 720, height || 720)
@@ -23,44 +22,47 @@ function runFFmpegOptimize(
   bitrates: { videoBitrate: string; maxRate: string; bufSize: string }
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = [
-      '-y',
-      '-i', inputPath,
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-b:v', bitrates.videoBitrate,
-      '-maxrate', bitrates.maxRate,
-      '-bufsize', bitrates.bufSize,
-      '-r', '30',
-      '-g', '60',
-      '-keyint_min', '60',
-      '-sc_threshold', '0',
-      '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '44100',
-      '-movflags', '+faststart',
-      outputPath,
-    ]
+    try {
+      const ffmpeg = require('fluent-ffmpeg')
+      
+      const timer = setTimeout(() => {
+        try {
+          command.kill('SIGKILL')
+        } catch {}
+        reject(new Error('Optimization timed out after 90s'))
+      }, 90000)
 
-    const proc = spawn('ffmpeg', args)
+      const command = ffmpeg(inputPath)
+        .outputOptions([
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-b:v', bitrates.videoBitrate,
+          '-maxrate', bitrates.maxRate,
+          '-bufsize', bitrates.bufSize,
+          '-r', '30',
+          '-g', '60',
+          '-keyint_min', '60',
+          '-sc_threshold', '0',
+          '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-ar', '44100',
+          '-movflags', '+faststart'
+        ])
+        .output(outputPath)
+        .on('end', () => {
+          clearTimeout(timer)
+          resolve()
+        })
+        .on('error', (err: any) => {
+          clearTimeout(timer)
+          reject(err)
+        })
 
-    let stderr = ''
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        reject(new Error(`FFmpeg optimization failed (code ${code}): ${stderr.slice(-300)}`))
-      }
-    })
-
-    proc.on('error', (err) => {
-      reject(err)
-    })
+      command.run()
+    } catch (e) {
+      reject(e)
+    }
   })
 }
 
@@ -109,7 +111,7 @@ export async function optimizeVideo(videoId: string): Promise<void> {
     const initialMeta = await getVideoMetadata(inputPath)
     const bitrates = getTargetBitrate(initialMeta.width || video.width || 720, initialMeta.height || video.height || 720)
 
-    // Run the optimization
+    // Run the optimization with ultrafast preset and timeout guard
     await runFFmpegOptimize(inputPath, outputPath, bitrates)
 
     // Overwrite the original with the optimized file
@@ -133,6 +135,7 @@ export async function optimizeVideo(videoId: string): Promise<void> {
     console.log(`Video ${videoId} successfully optimized for YouTube Live (${bitrates.videoBitrate})`)
   } catch (err) {
     console.error(`Failed to optimize video ${videoId}:`, err)
+    // Always mark as READY so the user is never permanently stuck
     try {
       await prisma.video.update({
         where: { id: videoId },
