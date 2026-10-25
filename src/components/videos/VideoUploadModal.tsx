@@ -30,6 +30,8 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [statusText, setStatusText] = useState('')
+  const [autoOptimize, setAutoOptimize] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -41,6 +43,7 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
       setError('')
       setSuccess(false)
       setProgress(0)
+      setStatusText('')
     }
   }
 
@@ -53,6 +56,7 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
     setUploading(true)
     setError('')
     setProgress(0)
+    setStatusText('Uploading video...')
 
     try {
       const formData = new FormData()
@@ -68,10 +72,29 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
           }
         })
 
-        xhr.addEventListener('load', () => {
+        xhr.addEventListener('load', async () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const response = JSON.parse(xhr.responseText)
+              
+              if (autoOptimize) {
+                setStatusText('⚡ Optimizing for YouTube Live (forcing 2-second keyframes)...')
+                try {
+                  const optRes = await fetch(`/api/videos/${response.id}/optimize`, {
+                    method: 'POST',
+                  })
+                  if (optRes.ok) {
+                    const optData = await optRes.json()
+                    onSuccess(optData.video || response)
+                    setSuccess(true)
+                    resolve()
+                    return
+                  }
+                } catch (optErr) {
+                  console.warn('Optimization warning, proceeding with original video:', optErr)
+                }
+              }
+
               setSuccess(true)
               onSuccess(response)
               resolve()
@@ -98,6 +121,7 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
+      setStatusText('')
     }
   }
 
@@ -166,6 +190,21 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
               />
             </div>
 
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
+              <input
+                type="checkbox"
+                id="auto-optimize-checkbox"
+                checked={autoOptimize}
+                onChange={(e) => setAutoOptimize(e.target.checked)}
+                disabled={uploading}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+              />
+              <label htmlFor="auto-optimize-checkbox" className="text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                <span className="font-semibold text-primary-700 dark:text-primary-300">Auto-align for YouTube Live</span>
+                <span className="block text-gray-500 dark:text-gray-400">Forces 2.0s keyframes (prevents buffering and "Poor" health)</span>
+              </label>
+            </div>
+
             {error && (
               <div className="p-3 rounded-md bg-red-50 text-red-600 text-sm dark:bg-red-900/30 dark:text-red-400 flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -175,9 +214,9 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
 
             {uploading && (
               <div className="space-y-2">
-                <Progress value={progress} label="Uploading..." showValue />
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                  {progress}% complete
+                <Progress value={progress} label={statusText || 'Uploading...'} showValue />
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center font-medium">
+                  {statusText || `${progress}% complete`}
                 </p>
               </div>
             )}

@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { formatFileSize, formatDuration, formatDate, cn } from '@/lib/utils'
-import { Video, Trash2, Play, ExternalLink, Upload } from 'lucide-react'
+import { Video, Trash2, Play, ExternalLink, Upload, Zap } from 'lucide-react'
 
 interface Video {
   id: string
@@ -25,6 +26,28 @@ interface VideoGridProps {
 }
 
 export function VideoGrid({ videos, loading, onDelete }: VideoGridProps) {
+  const [optimizingId, setOptimizingId] = useState<string | null>(null)
+
+  const handleOptimize = async (id: string) => {
+    setOptimizingId(id)
+    try {
+      const res = await fetch(`/api/videos/${id}/optimize`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to optimize video')
+      }
+      alert('⚡ Video successfully optimized for YouTube Live with 2.0s keyframes!')
+      window.location.reload()
+    } catch (error) {
+      console.error('Optimization error:', error)
+      alert(error instanceof Error ? error.message : 'Optimization failed')
+    } finally {
+      setOptimizingId(null)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
       return
@@ -128,6 +151,17 @@ export function VideoGrid({ videos, loading, onDelete }: VideoGridProps) {
                 {formatDate(video.createdAt)}
               </span>
               <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  onClick={() => handleOptimize(video.id)}
+                  isLoading={optimizingId === video.id}
+                  title="Optimize with 2.0s keyframes for YouTube"
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  YouTube Fix
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
