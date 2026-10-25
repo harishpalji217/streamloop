@@ -9,28 +9,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install package dependencies
+# Copy package files and prisma directory first
 COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies (will run prisma generate automatically via postinstall)
 RUN npm install
 
-# Copy database schema and generate Prisma client
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-# Copy the rest of the application code
+# Copy application source code
 COPY . .
 
-# Ensure volume mount directory exists
+# Ensure upload directory exists
 RUN mkdir -p /app/public/uploads
 
 # Build the Next.js application
 RUN npm run build
 
-# Expose port (Railway will provide PORT environment variable)
-EXPOSE 3000
+EXPOSE 10000
 
-ENV PORT=3000
+ENV PORT=10000
 ENV NODE_ENV=production
 
-# Start application
-CMD ["npm", "start"]
+# On container start: push database schema and start Next.js
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm start -- -p 10000"]
