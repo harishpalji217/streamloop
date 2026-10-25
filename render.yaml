@@ -6,6 +6,8 @@ services:
     plan: free
     region: oregon
     envVars:
+      - key: DATABASE_URL
+        value: "file:/app/prisma/dev.db"
       - key: NODE_ENV
         value: production
       - key: PORT

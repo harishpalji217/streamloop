@@ -9,11 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+ENV DATABASE_URL="file:/app/prisma/dev.db"
+ENV PORT=10000
+ENV NODE_ENV=production
+
 # Copy package files and prisma directory first
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies (will run prisma generate automatically via postinstall)
+# Install dependencies
 RUN npm install
 
 # Copy application source code
@@ -26,9 +30,6 @@ RUN mkdir -p /app/public/uploads
 RUN npm run build
 
 EXPOSE 10000
-
-ENV PORT=10000
-ENV NODE_ENV=production
 
 # On container start: push database schema and start Next.js
 CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm start -- -p 10000"]
