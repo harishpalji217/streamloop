@@ -10,7 +10,3 @@ services:
         value: production
       - key: PORT
         value: 10000
-    disk:
-      name: streamloop-uploads
-      mountPath: /app/public/uploads
-      sizeGB: 1
