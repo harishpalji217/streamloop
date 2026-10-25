@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  slots         LiveSlot[]
+  videos        Video[]
+  streamSessions StreamSession[]
+}
+
+model LiveSlot {
+  id            String         @id @default(uuid())
+  name          String
+  streamKey     String         @default("")
+  platform      String         @default("youtube")
+  expiresAt     DateTime
+  isActive      Boolean        @default(false)
+  loopEnabled   Boolean        @default(true)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  videoId       String?
+  video         Video?         @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streamSessions StreamSession[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model Video {
+  id            String         @id @default(uuid())
+  filename      String
+  originalName  String
+  filePath      String
+  fileSize      Int
+  duration      Float?         // in seconds
+  width         Int?
+  height        Int?
+  mimeType      String         @default("video/mp4")
+  thumbnailPath String?
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots         LiveSlot[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model StreamSession {
+  id            String         @id @default(uuid())
+  slotId        String
+  slot          LiveSlot       @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        String         @default("PENDING")
+  startedAt     DateTime?
+  stoppedAt     DateTime?
+  errorMessage  String?
+  ffmpegPid     Int?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([slotId])
+  @@index([userId])
+  @@index([status])
+}
