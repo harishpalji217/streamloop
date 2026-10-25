@@ -47,8 +47,20 @@ class StreamingManager {
             '-re'
           ])
           .outputOptions([
-            '-c:v', 'copy',
-            '-c:a', 'copy',
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-r', '30',
+            '-g', '60',
+            '-keyint_min', '60',
+            '-sc_threshold', '0',
+            '-b:v', '2500k',
+            '-maxrate', '2500k',
+            '-bufsize', '5000k',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-ar', '44100',
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize'
           ])
