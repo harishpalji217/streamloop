@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge'
 import { VideoSelector } from '@/components/slots/VideoSelector'
 import { StreamControls } from '@/components/slots/StreamControls'
 import { ArrowLeft, Save, Loader2, Trash2 } from 'lucide-react'
+import { format } from 'date-fns'
 
 interface Slot {
   id: string
@@ -19,6 +20,8 @@ interface Slot {
   streamKey: string
   platform: string
   expiresAt: string
+  scheduledStart: string | null
+  scheduledEnd: string | null
   isActive: boolean
   loopEnabled: boolean
   videoId: string | null
@@ -42,6 +45,8 @@ export default function SlotDetailPage() {
     streamKey: '',
     platform: 'youtube',
     expiresAt: '',
+    scheduledStart: '',
+    scheduledEnd: '',
     isActive: false,
     loopEnabled: true,
   })
@@ -60,7 +65,9 @@ export default function SlotDetailPage() {
         name: data.name,
         streamKey: data.streamKey || '',
         platform: data.platform,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString().slice(0, 16) : '',
+        expiresAt: data.expiresAt ? format(new Date(data.expiresAt), "yyyy-MM-dd'T'HH:mm") : '',
+        scheduledStart: data.scheduledStart ? format(new Date(data.scheduledStart), "yyyy-MM-dd'T'HH:mm") : '',
+        scheduledEnd: data.scheduledEnd ? format(new Date(data.scheduledEnd), "yyyy-MM-dd'T'HH:mm") : '',
         isActive: data.isActive,
         loopEnabled: data.loopEnabled,
       })
@@ -77,10 +84,17 @@ export default function SlotDetailPage() {
     setSuccess('')
 
     try {
+      const payload = {
+        ...formData,
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : formData.expiresAt,
+        scheduledStart: formData.scheduledStart ? new Date(formData.scheduledStart).toISOString() : null,
+        scheduledEnd: formData.scheduledEnd ? new Date(formData.scheduledEnd).toISOString() : null,
+      }
+
       const res = await fetch(`/api/slots/${params.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -223,11 +237,27 @@ export default function SlotDetailPage() {
                   ]}
                 />
 
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    label="Expires At"
+                    type="datetime-local"
+                    value={formData.expiresAt}
+                    onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Scheduled Start (Optional)"
+                    type="datetime-local"
+                    value={formData.scheduledStart}
+                    onChange={(e) => setFormData({ ...formData, scheduledStart: e.target.value })}
+                  />
+                </div>
+
                 <Input
-                  label="Expires At"
+                  label="Scheduled End (Optional)"
                   type="datetime-local"
-                  value={formData.expiresAt}
-                  onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+                  value={formData.scheduledEnd}
+                  onChange={(e) => setFormData({ ...formData, scheduledEnd: e.target.value })}
                 />
 
                 <div className="flex items-center justify-between py-2">
