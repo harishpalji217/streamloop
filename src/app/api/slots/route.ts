@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     if (status === 'active') where.isActive = true
     if (status === 'expired') where.expiresAt = { lt: new Date() }
 
-    const slots = await prisma.liveSlot.findMany({
+    let slots = await prisma.liveSlot.findMany({
       where,
       include: {
         video: {
@@ -48,6 +48,60 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     })
+
+    // If slots are empty (e.g. after a fresh deploy), auto-restore from persistent defaults
+    if (slots.length === 0 && !status) {
+      try {
+        const fs = await import('fs/promises')
+        const path = await import('path')
+        const seedPath = path.join(process.cwd(), 'src', 'data', 'default-slots.json')
+        const raw = await fs.readFile(seedPath, 'utf8')
+        const defaultSlots = JSON.parse(raw)
+
+        const userId = 'default-user'
+        let user = await prisma.user.findUnique({ where: { id: userId } })
+        if (!user) {
+          user = await prisma.user.create({
+            data: { id: userId, email: 'admin@streamloop.local', name: 'Admin User' }
+          })
+        }
+
+        for (const ds of defaultSlots) {
+          await prisma.liveSlot.create({
+            data: {
+              name: ds.name,
+              streamKey: ds.streamKey || '',
+              platform: ds.platform || 'youtube',
+              expiresAt: new Date(ds.expiresAt || Date.now() + 365 * 24 * 3600 * 1000),
+              loopEnabled: ds.loopEnabled ?? true,
+              userId,
+            }
+          })
+        }
+
+        slots = await prisma.liveSlot.findMany({
+          where,
+          include: {
+            video: {
+              select: {
+                id: true,
+                filename: true,
+                originalName: true,
+                fileSize: true,
+                duration: true,
+                thumbnailPath: true,
+              },
+            },
+            _count: {
+              select: { streamSessions: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      } catch (err) {
+        console.warn('Auto-restore default slots note:', err)
+      }
+    }
 
     return NextResponse.json(slots)
   } catch (error) {

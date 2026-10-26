@@ -1,0 +1,9 @@
+[
+  {
+    "name": "YouTube 24/7 Stream",
+    "streamKey": "pd6k-rkb5-g66e-yk31-a622",
+    "platform": "youtube",
+    "expiresAt": "2030-01-01T00:00:00.000Z",
+    "loopEnabled": true
+  }
+]

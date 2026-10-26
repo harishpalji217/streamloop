@@ -41,10 +41,16 @@ prisma/migrations/
 *.db
 *.db-journal
 
-# uploads
+# uploads & media - no videos ever in git
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
+*.flv
+*.m4v
 public/uploads/*
 !public/uploads/.gitkeep
-!public/uploads/Bageshwar_dham.mp4
 
 # IDE
 .idea/
