@@ -12,6 +12,66 @@ const globalForStreaming = globalThis as unknown as {
 }
 
 class StreamingManager {
+  constructor() {
+    this.initScheduler()
+  }
+
+  private initScheduler() {
+    if ((globalThis as any).streamSchedulerActive) return
+    ;(globalThis as any).streamSchedulerActive = true
+
+    console.log('[Auto-Scheduler] Initialized background stream scheduler (every 20s)')
+    setInterval(async () => {
+      try {
+        await this.checkSchedules()
+      } catch (err) {
+        console.error('[Auto-Scheduler] Tick error:', err)
+      }
+    }, 20000)
+  }
+
+  async checkSchedules(): Promise<void> {
+    try {
+      const now = new Date()
+
+      // 1. Find active slots scheduled to start:
+      const slotsToStart = await prisma.liveSlot.findMany({
+        where: {
+          isActive: true,
+          scheduledStart: { lte: now },
+          OR: [
+            { scheduledEnd: null },
+            { scheduledEnd: { gt: now } },
+          ],
+        },
+        include: { video: true },
+      })
+
+      for (const slot of slotsToStart) {
+        if (!this.processes.has(slot.id) && slot.video && slot.streamKey) {
+          console.log(`[Auto-Scheduler] 🚀 Auto-starting stream for slot "${slot.name}" (${slot.id})`)
+          await this.startStream(slot.id, slot.userId)
+        }
+      }
+
+      // 2. Find slots that reached scheduledEnd:
+      const slotsToEnd = await prisma.liveSlot.findMany({
+        where: {
+          scheduledEnd: { lte: now },
+        },
+      })
+
+      for (const slot of slotsToEnd) {
+        if (this.processes.has(slot.id)) {
+          console.log(`[Auto-Scheduler] ⏹️ Auto-stopping stream for slot "${slot.name}" (${slot.id})`)
+          await this.stopStream(slot.id)
+        }
+      }
+    } catch (err) {
+      console.error('[Auto-Scheduler] Error checking schedules:', err)
+    }
+  }
+
   private get processes(): Map<string, StreamProcess> {
     if (!globalForStreaming.streamProcesses) {
       globalForStreaming.streamProcesses = new Map()

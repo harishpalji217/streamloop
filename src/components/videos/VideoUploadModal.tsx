@@ -55,9 +55,6 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
     setProgress(0)
 
     try {
-      const formData = new FormData()
-      formData.append('video', file)
-
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
 
@@ -91,8 +88,11 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
         xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
         xhr.addEventListener('abort', () => reject(new Error('Upload aborted')))
 
+        // Stream raw binary directly without multi-part RAM overhead
         xhr.open('POST', '/api/upload')
-        xhr.send(formData)
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4')
+        xhr.setRequestHeader('x-filename', encodeURIComponent(file.name))
+        xhr.send(file)
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
@@ -117,7 +117,7 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
       isOpen={isOpen}
       onClose={handleCancel}
       title="Upload Video"
-      description="Select an MP4, WebM, or MOV video file (max 500MB)"
+      description="Select an MP4, WebM, or MOV video file (up to 1 GB)"
       size="lg"
     >
       <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -149,7 +149,7 @@ export function VideoUploadModal({ isOpen, onClose, onSuccess }: VideoUploadModa
                       Click to browse and choose a video file
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Supports MP4, WebM, MKV, MOV (max 500MB)
+                      Supports MP4, WebM, MKV, MOV (up to 1 GB)
                     </p>
                   </div>
                 )}

@@ -8,6 +8,8 @@ import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
 import path from 'path'
 
+export const dynamic = 'force-dynamic'
+
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 
 async function ensureUploadDir() {
@@ -24,7 +26,7 @@ function getVideoMetadata(filePath: string): Promise<{ duration: number; width: 
       const ffmpeg = require('fluent-ffmpeg')
       ffmpeg.ffprobe(filePath, (err: any, metadata: any) => {
         if (err) {
-          console.warn('ffprobe failed (FFmpeg may not be installed):', err.message)
+          console.warn('ffprobe failed:', err.message)
           resolve({ duration: 0, width: 0, height: 0 })
           return
         }
@@ -35,8 +37,7 @@ function getVideoMetadata(filePath: string): Promise<{ duration: number; width: 
           height: videoStream?.height || 0,
         })
       })
-    } catch (e) {
-      console.warn('FFmpeg not available, skipping metadata extraction')
+    } catch {
       resolve({ duration: 0, width: 0, height: 0 })
     }
   })
@@ -46,6 +47,65 @@ export async function POST(request: NextRequest) {
   try {
     await ensureUploadDir()
 
+    const rawFilename = request.headers.get('x-filename')
+    const contentType = request.headers.get('content-type') || 'video/mp4'
+
+    // Streamline path: zero-RAM binary streaming for large files
+    if (rawFilename && request.body) {
+      const originalName = decodeURIComponent(rawFilename)
+      const fileExt = path.extname(originalName) || '.mp4'
+      const filename = `${uuidv4()}${fileExt}`
+      const filePath = path.join(UPLOAD_DIR, filename)
+      const relativePath = `/uploads/${filename}`
+
+      const writeStream = createWriteStream(filePath)
+      const readableStream = Readable.fromWeb(request.body as any)
+      await pipeline(readableStream, writeStream)
+
+      const stat = await fs.stat(filePath)
+      if (stat.size === 0) {
+        await fs.unlink(filePath).catch(() => {})
+        return NextResponse.json({ error: 'Uploaded file is empty' }, { status: 400 })
+      }
+
+      const metadata = await getVideoMetadata(filePath)
+
+      const userId = 'default-user'
+      let user = await prisma.user.findUnique({ where: { id: userId } })
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            id: userId,
+            email: 'admin@streamloop.local',
+            name: 'Admin User',
+          },
+        })
+      }
+
+      const video = await prisma.video.create({
+        data: {
+          filename,
+          originalName,
+          filePath: relativePath,
+          fileSize: stat.size,
+          duration: metadata.duration,
+          width: metadata.width,
+          height: metadata.height,
+          mimeType: contentType,
+          status: 'PROCESSING',
+          thumbnailPath: null,
+          userId,
+        },
+      })
+
+      optimizeVideo(video.id).catch((err) =>
+        console.warn(`Background optimization task note for ${video.id}:`, err.message)
+      )
+
+      return NextResponse.json(video, { status: 201 })
+    }
+
+    // Fallback: standard formData for smaller uploads or alternative clients
     const formData = await request.formData()
     const file = formData.get('video') as File
 
@@ -53,30 +113,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No video file provided' }, { status: 400 })
     }
 
-    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type. Only MP4, WebM, MKV, and MOV are allowed.' }, { status: 400 })
-    }
-
-    const maxSize = 500 * 1024 * 1024
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 500MB.' }, { status: 400 })
-    }
-
     const fileExt = path.extname(file.name) || '.mp4'
     const filename = `${uuidv4()}${fileExt}`
     const filePath = path.join(UPLOAD_DIR, filename)
     const relativePath = `/uploads/${filename}`
 
-    // Stream file directly to disk in chunks to avoid blowing container memory (OOM crash)
     const writeStream = createWriteStream(filePath)
     const readableStream = Readable.fromWeb(file.stream() as any)
     await pipeline(readableStream, writeStream)
 
-    // Try to get metadata - works even without FFmpeg installed
     const metadata = await getVideoMetadata(filePath)
 
-    // Ensure default user exists
     const userId = 'default-user'
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
@@ -105,7 +152,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Trigger automatic YouTube Live 2.0s keyframe optimization in the background (fire & forget)
     optimizeVideo(video.id).catch((err) =>
       console.warn(`Background optimization task note for ${video.id}:`, err.message)
     )
