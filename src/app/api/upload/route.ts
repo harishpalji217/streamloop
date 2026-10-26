@@ -92,15 +92,11 @@ export async function POST(request: NextRequest) {
           width: metadata.width,
           height: metadata.height,
           mimeType: contentType,
-          status: 'PROCESSING',
+          status: 'READY',
           thumbnailPath: null,
           userId,
         },
       })
-
-      optimizeVideo(video.id).catch((err) =>
-        console.warn(`Background optimization task note for ${video.id}:`, err.message)
-      )
 
       return NextResponse.json(video, { status: 201 })
     }
@@ -146,15 +142,11 @@ export async function POST(request: NextRequest) {
         width: metadata.width,
         height: metadata.height,
         mimeType: file.type,
-        status: 'PROCESSING',
+        status: 'READY',
         thumbnailPath: null,
         userId,
       },
     })
-
-    optimizeVideo(video.id).catch((err) =>
-      console.warn(`Background optimization task note for ${video.id}:`, err.message)
-    )
 
     return NextResponse.json(video, { status: 201 })
   } catch (error) {

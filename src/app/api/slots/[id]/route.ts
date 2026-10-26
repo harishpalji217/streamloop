@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { streamingManager } from '@/lib/streaming'
 import { z } from 'zod'
 
 function parseDate(val: string | null | undefined): Date | null {
@@ -92,6 +93,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+    // Stop running stream if any
+    try {
+      await streamingManager.stopStream(id)
+    } catch {}
+
+    // Delete associated stream sessions first to avoid foreign key constraints
+    await prisma.streamSession.deleteMany({ where: { slotId: id } }).catch(() => {})
     await prisma.liveSlot.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -20,6 +20,8 @@ function parseDate(val: string | null | undefined): Date | null {
   return d
 }
 
+let initialBootChecked = false
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -49,8 +51,9 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
-    // If slots are empty (e.g. after a fresh deploy), auto-restore from persistent defaults
-    if (slots.length === 0 && !status) {
+    // Auto-restore default slots only ONCE on initial server boot
+    if (!initialBootChecked && slots.length === 0 && !status) {
+      initialBootChecked = true
       try {
         const fs = await import('fs/promises')
         const path = await import('path')
