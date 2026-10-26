@@ -19,7 +19,8 @@ function getTargetBitrate(width: number, height: number): { videoBitrate: string
 function runFFmpegOptimize(
   inputPath: string,
   outputPath: string,
-  bitrates: { videoBitrate: string; maxRate: string; bufSize: string }
+  bitrates: { videoBitrate: string; maxRate: string; bufSize: string },
+  timeoutMs: number
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
@@ -29,8 +30,8 @@ function runFFmpegOptimize(
         try {
           command.kill('SIGKILL')
         } catch {}
-        reject(new Error('Optimization timed out after 90s'))
-      }, 90000)
+        reject(new Error(`Optimization timed out after ${Math.round(timeoutMs / 1000)}s`))
+      }, timeoutMs)
 
       const command = ffmpeg(inputPath)
         .outputOptions([
@@ -111,8 +112,16 @@ export async function optimizeVideo(videoId: string): Promise<void> {
     const initialMeta = await getVideoMetadata(inputPath)
     const bitrates = getTargetBitrate(initialMeta.width || video.width || 720, initialMeta.height || video.height || 720)
 
-    // Run the optimization with ultrafast preset and timeout guard
-    await runFFmpegOptimize(inputPath, outputPath, bitrates)
+    // Dynamic timeout tailored for videos up to 2 hours (7,200s) and 1,000 MB:
+    // Minimum 30 minutes (1,800s); for long videos up to 2 hours, allows up to 5 hours (18,000s) on shared CPU
+    const duration = initialMeta.duration > 0 ? initialMeta.duration : 7200
+    const timeoutSeconds = Math.min(18000, Math.max(1800, Math.ceil(duration * 2.5)))
+    const timeoutMs = timeoutSeconds * 1000
+
+    console.log(`Starting optimization for ${videoId} (${video.originalName}): duration=${Math.round(duration)}s, timeout=${timeoutSeconds}s`)
+
+    // Run the optimization with ultrafast preset and dynamic timeout guard
+    await runFFmpegOptimize(inputPath, outputPath, bitrates, timeoutMs)
 
     // Overwrite the original with the optimized file
     await fs.unlink(inputPath)

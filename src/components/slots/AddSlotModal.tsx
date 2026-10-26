@@ -33,10 +33,17 @@ export function AddSlotModal({ isOpen, onClose, onSuccess }: AddSlotModalProps) 
     setError('')
 
     try {
+      const payload = {
+        ...formData,
+        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : formData.expiresAt,
+        scheduledStart: formData.scheduledStart ? new Date(formData.scheduledStart).toISOString() : null,
+        scheduledEnd: formData.scheduledEnd ? new Date(formData.scheduledEnd).toISOString() : null,
+      }
+
       const res = await fetch('/api/slots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
