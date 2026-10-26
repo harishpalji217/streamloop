@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { optimizeVideo } from '@/lib/video-optimizer'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs/promises'
+import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
 import path from 'path'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
@@ -65,9 +68,10 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(UPLOAD_DIR, filename)
     const relativePath = `/uploads/${filename}`
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await fs.writeFile(filePath, buffer)
+    // Stream file directly to disk in chunks to avoid blowing container memory (OOM crash)
+    const writeStream = createWriteStream(filePath)
+    const readableStream = Readable.fromWeb(file.stream() as any)
+    await pipeline(readableStream, writeStream)
 
     // Try to get metadata - works even without FFmpeg installed
     const metadata = await getVideoMetadata(filePath)
