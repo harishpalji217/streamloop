@@ -1,3 +1,13 @@
+---
+title: StreamLoop
+emoji: 📡
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # StreamLoop - Automated Live Streaming to YouTube
 
 A web application for managing live streaming slots, uploading pre-recorded videos, and automatically broadcasting looped video feeds to YouTube Live via FFmpeg.
