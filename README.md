@@ -3,7 +3,7 @@ title: StreamLoop
 emoji: 📡
 colorFrom: blue
 colorTo: purple
-sdk: docker
+sdk: gradio
 app_port: 7860
 pinned: false
 ---
