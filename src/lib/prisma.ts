@@ -1,5 +1,10 @@
 import { PrismaClient } from '@prisma/client'
 
+// Fallback if DATABASE_URL is unset or empty string from host container environment
+if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
+  process.env.DATABASE_URL = 'file:./dev.db'
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }

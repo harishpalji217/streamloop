@@ -36,4 +36,4 @@ RUN npm run build
 EXPOSE 7860
 
 # Start Next.js bound to 0.0.0.0 on port 7860 (or $PORT if provided by host)
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npx next start -H 0.0.0.0 -p ${PORT:-7860}"]
+CMD ["sh", "-c", "export DATABASE_URL=\"${DATABASE_URL:-file:/app/prisma/dev.db}\" && npx prisma db push --accept-data-loss && npx next start -H 0.0.0.0 -p ${PORT:-7860}"]
